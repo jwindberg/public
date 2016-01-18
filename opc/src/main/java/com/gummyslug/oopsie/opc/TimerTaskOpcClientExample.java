@@ -2,7 +2,7 @@ package com.gummyslug.oopsie.opc;
 
 import java.util.Timer;
 
-public class OpcClientMain {
+public class TimerTaskOpcClientExample {
 
 	private static final int NUM_LEDS = 64;
 
@@ -42,7 +42,7 @@ public class OpcClientMain {
 	}
 
 	public static void main(String[] args) {
-		new OpcClientMain().run();
+		new TimerTaskOpcClientExample().run();
 	}
 
 }
