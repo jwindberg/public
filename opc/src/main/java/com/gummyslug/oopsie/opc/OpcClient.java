@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.Socket;
-import java.util.List;
 
 public class OpcClient {
 
@@ -14,32 +13,47 @@ public class OpcClient {
 	private int port = 7890;
 	private String colorCorrection;
 	private byte firmwareConfig;
+	private byte[] packetData;
 
-	public void writePixels(List<Pixel> pixels) {
-		byte[] pixelData = new byte[pixels.size() * 3];
-		int index = 0;
-		for (Pixel pixel : pixels) {
-			pixelData[index] = pixel.getRed();
-			pixelData[index + 1] = pixel.getGreen();
-			pixelData[index + 2] = pixel.getBlue();
-			index += 3;
+	public OpcClient(int size) {
+		setPixelCount(size);
+	}
+
+	public void setPixelCount(int numPixels) {
+		int numBytes = 3 * numPixels;
+		int packetLen = 4 + numBytes;
+		if (packetData == null || packetData.length != packetLen) {
+			// Set up our packet buffer
+			packetData = new byte[packetLen];
+			packetData[0] = 0; // Channel
+			packetData[1] = 0; // Command (Set pixel colors)
+			packetData[2] = (byte) (numBytes >> 8);
+			packetData[3] = (byte) (numBytes & 0xFF);
 		}
-		writePixels(pixelData);
 	}
 
-	public void writePixels(byte[] pixelData) {
-		int numBytes = pixelData.length + 4;
-		byte[] packetData = new byte[numBytes];
-		packetData[0] = 0; // Channel
-		packetData[1] = 0; // Command (Set pixel colors)
-		packetData[2] = (byte) (numBytes >> 8);
-		packetData[3] = (byte) (numBytes & 0xFF);
-
-		System.arraycopy(pixelData, 0, packetData, 4, pixelData.length);
-		writePixelsInternal(packetData);
+	public void setPixel(int number, PixelColor pixelColor) {
+		int offset = 4 + number * 3;
+		if (packetData == null || packetData.length < offset + 3) {
+			setPixelCount(number);
+		}
+		packetData[offset] = pixelColor.getRed();
+		packetData[offset + 1] = pixelColor.getGreen();
+		packetData[offset + 2] = pixelColor.getBlue();
 	}
 
-	private void writePixelsInternal(byte[] packetData) {
+	public void setPixel(int number, int color) {
+		int offset = 4 + number * 3;
+		if (packetData == null || packetData.length < offset + 3) {
+			setPixelCount(number);
+		}
+
+		packetData[offset] = (byte) (color >> 16);
+		packetData[offset + 1] = (byte) (color >> 8);
+		packetData[offset + 2] = (byte) color;
+	}
+
+	public void writePixels() {
 		if (packetData == null || packetData.length == 0) {
 			// No pixel buffer
 			return;
@@ -55,7 +69,7 @@ public class OpcClient {
 		try {
 			output.write(packetData);
 		} catch (Exception e) {
-			dispose();
+			close();
 		}
 	}
 
@@ -125,20 +139,33 @@ public class OpcClient {
 			output = socket.getOutputStream();
 			System.out.println("Connected to OPC server");
 		} catch (ConnectException e) {
-			dispose();
+			close();
 		} catch (IOException e) {
-			dispose();
+			close();
 		}
 
 		sendColorCorrectionPacket();
 		sendFirmwareConfigPacket();
 	}
 
-	private void dispose() {
+	public void close() {
 		// Destroy the socket. Called internally when we've disconnected.
 		if (output != null) {
+			try {
+				output.close();
+			} catch (IOException e) {
+				// silence is golden
+			}
 			System.out.println("Disconnected from OPC server");
 		}
+		if (socket != null) {
+			try {
+				socket.close();
+			} catch (IOException e) {
+				// silence is golden
+			}
+		}
+
 		socket = null;
 		output = null;
 	}
@@ -170,7 +197,7 @@ public class OpcClient {
 			output.write(header);
 			output.write(content);
 		} catch (Exception e) {
-			dispose();
+			close();
 		}
 	}
 
@@ -195,7 +222,21 @@ public class OpcClient {
 		try {
 			output.write(packet);
 		} catch (Exception e) {
-			dispose();
+			close();
+		}
+	}
+
+	protected void finalize() throws Throwable {
+		clear();
+		close();
+	};
+
+	public void clear() {
+		if (packetData != null) {
+			for (int i = 4; i < packetData.length; i++) {
+				packetData[i] = 0;
+			}
+			writePixels();
 		}
 	}
 

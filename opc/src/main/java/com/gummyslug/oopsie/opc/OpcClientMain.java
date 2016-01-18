@@ -1,33 +1,35 @@
 package com.gummyslug.oopsie.opc;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Timer;
-import java.util.TimerTask;
 
 public class OpcClientMain {
 
-	Timer timer = null;
-	OPCTask opcTask = null;
-	OpcClient opcClient = new OpcClient();
+	private static final int NUM_LEDS = 64;
 
-	List<Pixel> pixels = createPixels();
+	Timer timer = null;
+	OpcTimerTask opcTimerTask;
+	OpcClient opcClient = new OpcClient(NUM_LEDS);
 
 	public void run() {
+		setColor(PixelColors.BLUE);
 		timer = new Timer("OPC");
-		opcTask = new OPCTask();
-		timer.scheduleAtFixedRate(opcTask, 2000, 1000 / 60);
-
-		sleep(30);
-
+		opcTimerTask = new OpcTimerTask(opcClient);
+		timer.scheduleAtFixedRate(opcTimerTask, 0, 1000 / 60);
+		sleep(2);
+		System.out.println("Red");
+		setColor(PixelColors.RED);
+		sleep(2);
+		System.out.println("Green");
+		setColor(PixelColors.GREEN);
+		sleep(2);
+		opcClient.clear();
+		timer.cancel();
 	}
 
-	private List<Pixel> createPixels() {
-		List<Pixel> pixels = new ArrayList<Pixel>();
-		for (int i = 0; i < 64; i++) {
-			pixels.add(Pixels.RED);
+	public void setColor(PixelColor pixelColor) {
+		for (int i = 0; i < NUM_LEDS; i++) {
+			opcClient.setPixel(i, pixelColor);
 		}
-		return pixels;
 	}
 
 	private void sleep(int seconds) {
@@ -40,22 +42,7 @@ public class OpcClientMain {
 	}
 
 	public static void main(String[] args) {
-		new OpcClientMain().run2();
-	}
-
-	private void run2() {
-		opcClient.writePixels(pixels);
-
-	}
-
-	class OPCTask extends TimerTask {
-
-		@Override
-		public void run() {
-			opcClient.writePixels(pixels);
-
-		}
-
+		new OpcClientMain().run();
 	}
 
 }
